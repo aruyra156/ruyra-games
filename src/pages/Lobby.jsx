@@ -115,9 +115,14 @@ export default function Lobby() {
           </div>
         </div>
 
-        <button onClick={() => { clearInterval(pollRef.current); navigate('/') }}
-          className="text-gray-600 text-sm underline">
-          Cancelar
+        <button onClick={async () => {
+          clearInterval(pollRef.current)
+          if (roomIdRef.current) {
+            await supabase.rpc('cancel_room_join', { p_room_id: roomIdRef.current })
+          }
+          navigate('/')
+        }} className="text-gray-600 text-sm underline">
+          Cancelar (recupera tu saldo)
         </button>
       </div>
     </div>
