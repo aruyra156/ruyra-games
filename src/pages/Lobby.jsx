@@ -19,10 +19,8 @@ export default function Lobby() {
     if (!user || !bet) return
 
     const enter = async () => {
-      // Jitter aleatorio: desincroniza las llamadas de los 3 jugadores
-      const jitter = 300 + Math.random() * 700
-      await new Promise(r => setTimeout(r, jitter))
-
+      // Sin jitter: el cerrojo (pg_advisory_xact_lock) del SQL serializa
+      // las entradas, así que no hay race condition que esquivar.
       setStatus('Uniéndote...')
 
       const { data, error: err } = await supabase
