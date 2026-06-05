@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+body {
+  margin: 0;
+  background: #0F0F1A;
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+#root {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+.tile-flash {
+  animation: flash 0.4s ease-in-out;
+}
+
+@keyframes flash {
+  0%   { background-color: #7C3AED; transform: scale(1.05); }
+  50%  { background-color: #A855F7; transform: scale(1.08); }
+  100% { background-color: #1A1A2E; transform: scale(1); }
+}
+
+.tile-correct {
+  animation: correct 0.2s ease-out;
+}
+
+@keyframes correct {
+  0%   { background-color: #10B981; transform: scale(1.05); }
+  100% { background-color: #1A1A2E; transform: scale(1); }
+}
+
+.tile-wrong {
+  animation: wrong 0.3s ease-out;
+}
+
+@keyframes wrong {
+  0%   { background-color: #EF4444; transform: scale(0.95); }
+  100% { background-color: #1A1A2E; transform: scale(1); }
+}
+
+.pulse-ring {
+  animation: pulse-ring 2s infinite;
+}
+
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.4); }
+  70%  { box-shadow: 0 0 0 20px rgba(124, 58, 237, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0); }
+}
