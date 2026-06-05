@@ -11,6 +11,7 @@ export default function Lobby() {
   const [error, setError] = useState(null)
   const [status, setStatus] = useState('Buscando sala...')
   const roomIdRef = useRef(null)
+  const seedRef = useRef(null)
   const pollRef = useRef(null)
   const doneRef = useRef(false)
 
@@ -18,27 +19,31 @@ export default function Lobby() {
     if (!user || !bet) return
 
     const enter = async () => {
-      // 1. Encontrar o crear sala
-      const { data: roomId, error: roomErr } = await supabase
-        .rpc('find_or_create_room', {
-          p_bet: bet.amount, p_prize: bet.prize, p_max_players: bet.players,
+      // Una sola llamada atómica: busca sala + se une + descuenta entrada
+      const { data, error: err } = await supabase
+        .rpc('find_or_join_room', {
+          p_bet: bet.amount,
+          p_prize: bet.prize,
+          p_max_players: bet.players,
         })
-      if (roomErr) { setError('Error al buscar sala: ' + roomErr.message); return }
-      roomIdRef.current = roomId
 
-      // 2. Unirse y descontar entrada
-      const { error: joinErr } = await supabase
-        .rpc('join_room', { p_room_id: roomId, p_bet: bet.amount })
-      if (joinErr) { setError('Error al unirse: ' + joinErr.message); return }
+      if (err) {
+        setError(err.message.includes('insuficiente')
+          ? 'Saldo insuficiente para esta partida'
+          : 'Error al unirse: ' + err.message)
+        return
+      }
 
+      roomIdRef.current = data.room_id
+      seedRef.current = data.seed
       setStatus('Esperando jugadores...')
 
-      // 3. Polling cada 1.5s hasta que la sala esté llena
+      // Polling cada 1.5s para ver cuántos jugadores hay
       pollRef.current = setInterval(async () => {
         const { data: players } = await supabase
           .from('room_players')
           .select('user_id')
-          .eq('room_id', roomId)
+          .eq('room_id', data.room_id)
 
         const count = players?.length ?? 0
         setPlayerCount(count)
@@ -46,12 +51,9 @@ export default function Lobby() {
         if (count >= bet.players && !doneRef.current) {
           doneRef.current = true
           clearInterval(pollRef.current)
-
-          // Obtener semilla de la sala
-          const { data: room } = await supabase
-            .from('game_rooms').select('seed').eq('id', roomId).single()
-
-          navigate('/game', { state: { bet, roomId, seed: room?.seed ?? Date.now() } })
+          navigate('/game', {
+            state: { bet, roomId: data.room_id, seed: data.seed },
+          })
         }
       }, 1500)
     }
@@ -59,12 +61,6 @@ export default function Lobby() {
     enter()
     return () => clearInterval(pollRef.current)
   }, [user, bet, navigate])
-
-  const cancel = () => {
-    clearInterval(pollRef.current)
-    // Devolver saldo si se cancela (opcional — implementar después)
-    navigate('/')
-  }
 
   if (error) return (
     <div className="flex flex-col min-h-svh bg-[#0F0F1A] text-white items-center justify-center px-6 gap-4">
@@ -77,6 +73,7 @@ export default function Lobby() {
   return (
     <div className="flex flex-col min-h-svh bg-[#0F0F1A] text-white items-center justify-center px-6">
       <div className="text-center w-full max-w-sm">
+
         {/* Spinner con contador */}
         <div className="relative w-32 h-32 mx-auto mb-8">
           <div className="absolute inset-0 rounded-full border-4 border-purple-900/40" />
@@ -117,8 +114,9 @@ export default function Lobby() {
           </div>
         </div>
 
-        <button onClick={cancel} className="text-gray-600 text-sm underline">
-          Cancelar y recuperar saldo
+        <button onClick={() => { clearInterval(pollRef.current); navigate('/') }}
+          className="text-gray-600 text-sm underline">
+          Cancelar
         </button>
       </div>
     </div>
