@@ -19,7 +19,12 @@ export default function Lobby() {
     if (!user || !bet) return
 
     const enter = async () => {
-      // Una sola llamada atómica: busca sala + se une + descuenta entrada
+      // Jitter aleatorio: desincroniza las llamadas de los 3 jugadores
+      const jitter = 300 + Math.random() * 700
+      await new Promise(r => setTimeout(r, jitter))
+
+      setStatus('Uniéndote...')
+
       const { data, error: err } = await supabase
         .rpc('find_or_join_room', {
           p_bet: bet.amount,
@@ -30,7 +35,7 @@ export default function Lobby() {
 
       if (err) {
         setError(err.message.includes('insuficiente')
-          ? 'Saldo insuficiente para esta partida'
+          ? 'Saldo insuficiente'
           : 'Error al unirse: ' + err.message)
         return
       }
@@ -39,21 +44,28 @@ export default function Lobby() {
       seedRef.current = data.seed
       setStatus('Esperando jugadores...')
 
-      // Polling cada 1.5s para ver cuántos jugadores hay
+      // Polling: comprueba jugadores Y status de la sala
       pollRef.current = setInterval(async () => {
-        const { data: players } = await supabase
-          .from('room_players')
-          .select('user_id')
-          .eq('room_id', data.room_id)
+        const [{ data: players }, { data: room }] = await Promise.all([
+          supabase.from('room_players').select('user_id').eq('room_id', data.room_id),
+          supabase.from('game_rooms').select('status, seed').eq('id', data.room_id).single(),
+        ])
 
         const count = players?.length ?? 0
         setPlayerCount(count)
 
-        if (count >= bet.players && !doneRef.current) {
+        // Navegar cuando la sala esté llena (status = 'playing' O count >= max)
+        const isFull = room?.status === 'playing' || count >= (bet.players ?? 3)
+
+        if (isFull && !doneRef.current) {
           doneRef.current = true
           clearInterval(pollRef.current)
           navigate('/game', {
-            state: { bet, roomId: data.room_id, seed: data.seed },
+            state: {
+              bet,
+              roomId: data.room_id,
+              seed: room?.seed ?? data.seed,
+            },
           })
         }
       }, 1500)
@@ -62,6 +74,14 @@ export default function Lobby() {
     enter()
     return () => clearInterval(pollRef.current)
   }, [user, bet, navigate])
+
+  const cancel = async () => {
+    clearInterval(pollRef.current)
+    if (roomIdRef.current) {
+      await supabase.rpc('cancel_room_join', { p_room_id: roomIdRef.current })
+    }
+    navigate('/')
+  }
 
   if (error) return (
     <div className="flex flex-col min-h-svh bg-[#0F0F1A] text-white items-center justify-center px-6 gap-4">
@@ -87,7 +107,9 @@ export default function Lobby() {
 
         <h2 className="text-2xl font-black mb-2">{status}</h2>
         <p className="text-gray-500 text-sm mb-8">
-          Faltan {Math.max(0, (bet?.players ?? 3) - playerCount)} jugadores para empezar
+          {playerCount > 0
+            ? `Faltan ${Math.max(0, (bet?.players ?? 3) - playerCount)} jugadores`
+            : 'Conectando...'}
         </p>
 
         {/* Avatares */}
@@ -103,7 +125,7 @@ export default function Lobby() {
           ))}
         </div>
 
-        {/* Info partida */}
+        {/* Info */}
         <div className="bg-[#1A1A2E] rounded-2xl px-6 py-4 border border-purple-900/30 text-left mb-6">
           <div className="flex justify-between items-center mb-2">
             <span className="text-gray-400 text-sm">Apuesta</span>
@@ -115,14 +137,8 @@ export default function Lobby() {
           </div>
         </div>
 
-        <button onClick={async () => {
-          clearInterval(pollRef.current)
-          if (roomIdRef.current) {
-            await supabase.rpc('cancel_room_join', { p_room_id: roomIdRef.current })
-          }
-          navigate('/')
-        }} className="text-gray-600 text-sm underline">
-          Cancelar (recupera tu saldo)
+        <button onClick={cancel} className="text-gray-600 text-sm underline">
+          Cancelar (recuperar saldo)
         </button>
       </div>
     </div>
