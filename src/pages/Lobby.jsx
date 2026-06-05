@@ -25,6 +25,7 @@ export default function Lobby() {
           p_bet: bet.amount,
           p_prize: bet.prize,
           p_max_players: bet.players,
+          p_game_id: bet.gameId ?? 'memoria',
         })
 
       if (err) {

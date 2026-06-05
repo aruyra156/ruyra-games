@@ -21,7 +21,8 @@ const GAME_COMPONENTS = {
 export default function Game() {
   const navigate = useNavigate()
   const { state } = useLocation()
-  const { bet, roomId, seed, gameId = 'memoria' } = state ?? {}
+  const { bet, roomId, seed } = state ?? {}
+  const gameId = bet?.gameId ?? 'memoria'
   const user = useUser()
   const [myScore, setMyScore] = useState(null)
   const [rivals, setRivals] = useState([])
